@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket io</title>
+    <link href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" rel="stylesheet">
+
+</head>
+<body>
+    
+    <div class="app container">
+        <h3 class="text-center text-lg">Socket.io chat</h3>
+        <div class="w-full md:w-1/2 px-3">
+            <label class="block uppercase tracking-wide text-gray-700 text-xs font-bold mb-2" for="grid-last-name">
+                Message
+            </label>
+            <input class="appearance-none block w-full bg-gray-200 text-gray-700 border border-gray-200 rounded py-3 px-4 leading-tight focus:outline-none focus:bg-white focus:border-gray-500" id="grid-last-name" type="text" placeholder="Message">
+        </div>
+        <pre id="log"></pre>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.dev.js" integrity="sha256-OgiHfllOBEOiWQ2OcBsDncRG2k7QBW9Rs1dB7MH2N2s=" crossorigin="anonymous"></script>
+    <script>
+     window.onload = function() {
+            const IO_URL = 'http://localhost:3000';
+            console.log("Connecting to:", IO_URL);
+
+            // Connexion au serveur Socket.io.
+            const socket = io(IO_URL);
+
+            // Interval du ping.
+            var intervalPing = null;
+
+                    // Récupération du <pre> pour les logs.
+            const   pre = document.getElementById("log"),
+                    // Récupération du <input> pour les messages.
+                    input = document.querySelector('input[type=text]'),
+                    h3 = document.querySelector('h3');
+
+            pre.write = function(level, msg) {
+                let color = "grey";
+                if (level === "info") {
+                    color = "blue";
+                } else if (level === "error") {
+                    color = "red";
+                } else if (level === "warn") {
+                    color = "yellow";
+                }
+                pre.innerHTML = `<span style="color:${color};">${msg}</span>\n` + pre.innerHTML;
+                
+            };
+
+            // Récéption d'une enveloppe "Hello" envoyée par
+            // le serveur afin de nous indiquer notre ID.
+            socket.on('hello', function(id) {
+                h3.innerHTML += ` - ${id}`.toUpperCase();
+                pre.write("info", `[hello] from server`);
+                // Envoi d'une enveloppe "Hello" au serveur
+                // afin de lui répondre.
+                socket.emit('hello');
+                // Envoi d'un ping toutes les 5s au serveur.
+                intervalPing = setInterval(function() {
+                    if (socket.disconnected) {
+                        pre.write("warn", `[ping_out] - disconnected...`);
+                    } else {
+                        socket.emit('ping_out');
+                        let now = Date.now();
+                        pre.write(null, `[ping_out] - ${now}`);
+                    }
+                }, 10000);
+            });
+
+            // Récéption des enveloppes "Message" envoyées par
+            // le serveur.
+            socket.on('message', function(msg) {
+                pre.write("info", `[msg] - ${msg.src} say: "${msg.data}"`);
+            });
+
+            // Récéption des enveloppes "Pong" envoyées par
+            // le serveur.
+            socket.on('ping_in', function() {
+                let now = Date.now();
+                pre.write(null, `[ping_in] - ${now}`);
+            });
+
+            // Récéption d'un événement d'erreur lié au serveur.
+            socket.on('error', function(error) {
+                console.log("Error:", error);
+                pre.write("error", error);
+            });
+
+            // Récéption de l'événement de déconnection.
+            socket.on('disconnect', function(reason) {
+                console.log("Client disconnected:", reason);
+                pre.write("warn", "disconnected:" + reason);
+
+                clearInterval(intervalPing);
+            });
+
+            input.onkeyup = function(event) {
+                if (event.key.toUpperCase() === "ENTER" && "" !== input.value) {
+                    socket.emit('message', input.value);
+                    input.value = "";
+                }
+            };
+        };
+    </script>
+</body>
+</html>
